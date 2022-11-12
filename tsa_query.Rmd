@@ -1,0 +1,173 @@
+---
+title: "Transfusion Service Analysis"
+subtitle: "Data Query"
+author: "Jessica Jones"
+date: "`r format(Sys.Date(),'%B %d, %Y')`"
+output: word_document
+---
+
+The Laboratory Information System can be queried to pull data for analysis.
+
+# Connection
+
+```{r}
+#con <- DBI::dbConnect(odbc::odbc(), dsn = "TEST", timeout = 10)
+con <- DBI::dbConnect(odbc::odbc(), dsn = "LAB", timeout = 10)
+```
+
+# Transfusions
+
+Each row represents a transfused (%IF) product.
+These products are not returned to the Transfusion Service and are billable.
+
+```{sql, connection = con, output.var = "bb_if_data"}
+
+SELECT
+    bbi.IssueDate_ODBC
+  , mpl_parent.LocCode
+  , mpl_parent.LocType
+  , bps.UnitArea
+  , mct.CompGroup
+  , bpsc.CT
+FROM 
+       SQ.BB_BPSta bps
+  JOIN SQ.BB_BPSpcCur bpsc
+  ON bps.BB_BPInfo = bpsc.BB_BPInfo
+  JOIN SQ.BBMA_CompTy mct
+  ON bpsc.CT = mct.CompType
+  JOIN SQ.BB_IssuedUnits bbi
+  ON bps.BB_BPInfo = bbi.UIDX
+  JOIN SQ.MA_PtLoc mpl_specific
+  ON bps.ISULoc = mpl_specific.LocIndex
+  JOIN SQ.MA_PtLoc mpl_parent
+  ON mpl_specific.LocParent = mpl_parent.LocIndex
+WHERE
+  --between dates
+  bbi.IssueDate_ODBC BETWEEN '2021-07-01' AND '2022-06-30'
+```
+
+# Issues
+
+Each row represents a product being issued (%IS).
+Many locations store products in regulated refrigerators and return the product if not used.  Blood product issue is time consuming and should be considered for staffing even if the product is not ultimately transfused.
+
+```{sql, connection = con, output.var = "bb_is_data"}
+SELECT
+    bps.UnitArea
+  , mct.CompGroup
+  , bpsc.CT
+  --products only issued once, do not have Activity D/T
+  , ISNULL(bpsh.ActivityDate, bpsh.EntryDate) as "IssueDate"
+  , ISNULL(bpsh.ActivityTime, bpsh.EntryTime) as "IssueTime"
+FROM
+       SQ.BB_BPStaHst bpsh
+  JOIN SQ.BB_BPSpcCur bpsc
+  ON bpsh.BB_BPInfo = bpsc.BB_BPInfo
+  JOIN SQ.BBMA_CompTy mct
+  ON bpsc.CT = mct.CompType
+  LEFT JOIN SQ.BB_BPSta bps
+  ON bpsh.BB_BPInfo = bps.BB_BPInfo
+WHERE 
+  bpsh.Status = '%IS'
+  AND (
+    bpsh.EntryDate BETWEEN '2021-07-01' AND '2022-06-30'
+    OR   
+    bpsh.ActivityDate BETWEEN '2021-07-01' AND '2022-06-30'
+  )
+```
+
+# Testing
+
+Each row represents an antibody screen (%AS) being resulted.
+The vast majority of Transfusion Service testing revolved around an antibody screen (%AS).  This test can be utilized for picturing staff and instrument workload.
+
+```{sql, connection = con, output.var = "bb_t_data"}
+--%as only
+SELECT
+    glc.CollectDateODBC
+  , glc.CollectTimeODBC
+  , glc.ReceiveDateODBC
+  , glc.ReceiveTimeODBC
+  , glo.BatTstCode
+  , glo.PriorityCodes
+  , glrh.HistIndex
+  , glrh.ResultMethod
+  , glrh.ResultTechCodes
+  , glrh.ResultLab
+  , glrh.CurrentResult
+  , glrh.ResultDateODBC
+  , glrh.ResultTimeODBC
+  , glrh.Result
+  , glrh.ResultModifiers
+FROM
+       SQ.GL_ORDX_MJ base
+  JOIN SQ.GL_ORDX glox
+  ON base.GL_ORDX_MJ = glox.GL_ORDX_MJ
+  JOIN SQ.GL_Specimen gls
+  ON glox.LinkToGL_Specimen = gls.RowID
+  JOIN SQ.GL_Collect glc
+  ON gls.RowID = glc.GL_Specimen
+  JOIN SQ.GL_Order glo
+  ON glc.RowID = glo.GL_Collect
+  JOIN SQ.GL_Test glt
+  ON glo.RowID = glt.GL_Order
+  JOIN SQ.GL_ResHist glrh
+  ON glt.RowID = glrh.GL_Test
+  JOIN SQ.MA_OrdCode moc
+  ON glo.BatTstCode = moc.OrderCode
+WHERE
+  --change -# for required look back
+  base.ID >= cast(((DateDiff(month,'12/31/1992',GetDate()))-24) as integer)
+  --between date range
+  AND glc.ReceiveDateODBC BETWEEN '2021-07-01' AND '2022-06-30'
+  --and not credited
+  AND glo.CreditDate IS NULL
+  --and not cancelled
+  AND glo.CancelDate IS NULL
+  --and not deleted
+  AND glo.DeleteDate IS NULL
+  --and antibody screen
+  AND glt.TestCode = '%AS'
+```
+
+# Disconnect
+
+```{r}
+DBI::dbDisconnect(con)
+```
+
+# Data
+
+The query does not need performed every time so it is stored for use.
+
+```{r}
+file_id <- as.numeric(format(Sys.Date(), '%Y'))-1
+```
+
+```{r}
+saveRDS(bb_if_data, file = paste0("bb_if_data_fy", file_id, ".rds"))
+saveRDS(bb_is_data, file = paste0("bb_if_data_fy", file_id, ".rds"))
+saveRDS(bb_t_data, file = paste0("bb_if_data_fy", file_id, ".rds"))
+```
+
+```{r}
+##read data
+bb_if_data <- readRDS(file = paste0("../Final/Data/bb_if_data_fy", file_id, ".rds"))
+bb_is_data <- readRDS(file = paste0("../Final/Data/bb_is_data_fy", file_id, ".rds"))
+bb_t_data <- readRDS(file = paste0("../Final/Data/bb_t_data_fy", file_id, ".rds"))
+
+library(dplyr)
+
+#%IF
+str(bb_if_data)
+bb_if_data |> group_by(CompGroup) |> count(sort = TRUE)
+
+#%IS
+str(bb_is_data)
+bb_is_data |> group_by(CompGroup) |> count(sort = TRUE)
+
+#%AS
+str(bb_t_data)
+bb_t_data |> group_by(ResultMethod) |> count(sort = TRUE)
+```
+
