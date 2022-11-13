@@ -11,14 +11,32 @@ html_document:
   
 ```{r setup, include = FALSE}
 library(tidyverse)
+library(lubridate)
 library(ggplot2)
 library(plotly)
 library(flexdashboard)
 
 ##most recent year
 file_id <- as.numeric(format(Sys.Date(), '%Y'))-1
+
+##variables
 bbarea <- c("BB", "C", "CRC", "I", "R")
 labloc <- c("B", "C", "CRC", "I", "R")
+products <- c("RC", "PLTG", "PLG", "CRYG", "MFP")
+product_labels <- c("RBCs", "Platelets", "Plasma", "Cryoprecipitate", "Manufactured")
+
+## formatting
+
+mycolors <- c("#E8000D", "#0051BA", "#FFC82D", "#355C7D", "#85898A")
+
+Graph_Theme <- theme(plot.title = element_text(face = "bold", size = (12), hjust = 0.5),
+                     plot.subtitle = element_text(size = (8), hjust = 0.5),
+                     axis.title = element_text(face = "plain", size = 10),
+                     plot.caption = element_text(hjust = 1),
+                     legend.text = element_text(size = 8),
+                     legend.key.size =  unit(5,"mm"),
+                     #legend.position = "none",
+                     axis.text = element_text(size = 8))
 ```
 
 ```{r data}
@@ -28,12 +46,48 @@ bb_if_data <- readRDS(file = paste0("../Final/Data/bb_if_data_fy", file_id, ".rd
 bb_is_data <- readRDS(file = paste0("../Final/Data/bb_is_data_fy", file_id, ".rds"))
 bb_t_data <- readRDS(file = paste0("../Final/Data/bb_t_data_fy", file_id, ".rds"))
 
-```
+##data prep
+bb_if_data <- bb_if_data |> 
+  filter(UnitArea %in% bbarea) |>
+  mutate(Month = month(IssueDate_ODBC, label = TRUE),
+         Weekday = wday(IssueDate_ODBC, label = TRUE),
+         Components = factor(CompGroup, 
+                            levels = products,
+                            labels = product_labels))
 
-```{r}
-glimpse(bb_if_data)
-glimpse(bb_is_data)
-glimpse(bb_t_data)
+bb_is_data <- bb_is_data |> 
+  filter(UnitArea %in% bbarea) |>
+  mutate(Month = month(IssueDate, label = TRUE),
+         Weekday = wday(IssueDate, label = TRUE),
+         Hour = hour(IssueTime),
+         Components = factor(CompGroup, 
+                            levels = products,
+                            labels = product_labels))
+
+bb_t_data <- bb_t_data |>
+  filter(ResultLab %in% labloc,
+         CurrentResult == "Yes",
+         Result != "HIDE") |> 
+  mutate(Month = month(ReceiveDateODBC, label = TRUE),
+         Weekday = wday(ReceiveDateODBC, label = TRUE),
+         Hour = hour(ReceiveTimeODBC),
+         Priority = case_when(PriorityCodes == "S" ~ "Stat",
+                              TRUE ~ "Routine"),
+         TAT = round(as.numeric(difftime(as.POSIXct(paste(ResultDateODBC, ResultTimeODBC)),
+                                         as.POSIXct(paste(ReceiveDateODBC, ReceiveTimeODBC)),
+                                         units = c("mins")))),
+         Battery = case_when(BatTstCode == "XM" ~ "Crossmatch",
+                             BatTstCode == "TYSC" ~ "Type and Screen",
+                             TRUE ~ "Other %AS battery"),
+         Battery = factor(Battery, levels = c("Crossmatch", "Type and Screen", "Other %AS battery")),
+         Results = case_when(!(is.na(ResultModifiers)) ~ "Requires Follow up",
+                             Result == "%NEG" ~ "Negative",
+                             TRUE ~ "Requires Follow up"),
+         Method = case_when(ResultMethod == "%BPW" ~ "Bench",
+                            ResultMethod == "EC2" ~ "Echo",
+                            ResultMethod == "NE1" ~ "Neo",
+                            TRUE ~ "Other"))
+
 ```
 
 ```{r}
@@ -48,62 +102,139 @@ if(max(bb_is_data$IssueDate) == max(bb_if_data$IssueDate_ODBC) & max(bb_t_data$R
 } else {
   stop("Check report end dates.")
 }
+
+if(min(year(bb_is_data$IssueDate)) != max(year(bb_is_data$IssueDate))){
+  fiscal_months <- c("Jul", "Aug",  "Sep",  "Oct",  "Nov",  "Dec", "Jan",  "Feb",  "Mar",  "Apr",  "May",  "Jun")
+  bb_if_data <- bb_if_data |> 
+    mutate(Month = factor(Month, levels = fiscal_months))
+  bb_is_data <- bb_is_data |> 
+    mutate(Month = factor(Month, levels = fiscal_months))
+  bb_t_data <- bb_t_data |> 
+    mutate(Month = factor(Month, levels = fiscal_months))
+}
+
+
 ```
 
 Closer look at the Transfusion Service from `r mindate` to `r maxdate`.
 
-# Tab 1
+# Monthly Overview
+
+```{r}
+##monthly counts
+monthly_if_count <- bb_if_data |>
+  group_by(Month) |> 
+  count(name = "Transfused")
+
+bb_if_monthlyavg <- round(mean(monthly_if_count$Transfused))
+
+monthly_is_count <-  bb_is_data |> 
+    group_by(Month) |> 
+    count(name = "Issued")
+
+bb_is_monthlyavg <- round(mean(monthly_is_count$Issued))
+
+monthly_t_count <- bb_t_data |>  
+  group_by(Month) |> 
+  count(name = "Antibody Screens")
+
+bb_t_monthlyavg <- round(mean(monthly_t_count$`Antibody Screens`))
+
+if(nrow(monthly_is_count) == nrow(monthly_if_count)){
+  avg_diff_is_if <- round((sum(monthly_is_count$Issued) - sum(monthly_if_count$Transfused))/nrow(monthly_if_count))
+} else {
+  stop("Check Monthly Counts")
+}
+
+```
+
+column
+-------------------------------------------------------
+
+### Transfusions average `r bb_if_monthlyavg` per month
+
+```{r}
+monthly_if <- bb_if_data |> 
+  group_by(Month, Location = UnitArea) |>  
+  count(name = "Count")
+
+g_monthly_if <- ggplot(monthly_if) +
+  geom_col(aes(x = Month, y = Count, fill = Location)) +
+  labs(title = "Transfused Products by Location") +
+  scale_fill_manual(values = mycolors) +
+  Graph_Theme
+
+ggplotly(g_monthly_if)
+
+```
+
+### Antibody Screens average `r bb_t_monthlyavg` per month
+
+```{r}
+monthly_AS <- bb_t_data |> 
+  group_by(Month, Battery) |> 
+  count(name = "Count")
+
+g_monthly_AS <- ggplot(monthly_AS) +
+  geom_col(aes(x = Month, y = Count, fill = Battery)) +
+  labs(title = "Antibody Screen Testing by Battery") +
+  scale_fill_manual(values = mycolors) +
+  Graph_Theme
+
+ggplotly(g_monthly_AS)
+
+```
+
+Column
+---------------------------------------------------------
+
+### Products issued averages `r bb_is_monthlyavg` per month
+
+```{r}
+monthly_is <- bb_is_data |> 
+  group_by(Month, Components) |> 
+  count(name = "Count")
+
+g_monthly_is <- ggplot(monthly_is) +
+  geom_col(aes(x = Month, y = Count, fill = Components)) +
+  labs(title = "Issued Products by Component Group") +
+  scale_fill_manual(values = mycolors) +
+  Graph_Theme
+
+ggplotly(g_monthly_is)
+```
+
+### Approximately `r avg_diff_is_if` more products are issued per month than is transfused
+
+```{r}
+monthly_product_counts <- left_join(monthly_if_count, 
+                                    monthly_is_count, 
+                                    by = "Month") |> 
+  pivot_longer(-c(Month), names_to = "Status", values_to = "Count")
+
+ 
+g_monthly_product_counts <- ggplot(monthly_product_counts) +
+  geom_col(aes(x = Month, y = Count, fill = Status),
+           position = "dodge") +
+  labs(title = "Blood Product Usage") +
+  scale_fill_manual(values = mycolors) +
+  Graph_Theme
+
+ggplotly(g_monthly_product_counts)
+```
+
+# Turn Around Times
+
+```{r}
+mean(bb_t_data$TAT)
+quantile(bb_t_data$TAT, probs = 0.9)
+```
+
 
 ### Chart 1
 
 ```{r}
-ggplotly(pi)
+print("tab 2 chart 1")
 ```
 
-### Chart 2
 
-```{r}
-ggplotly(p1)
-```
-
-# Tab 2
-
-### Chart 1
-
-```{r}
-ggplotly(pi)
-```
-
-### Chart 2
-
-```{r}
-ggplotly(p2)
-```
-
-# Tab 3
-
-### Chart 1
-
-```{r}
-ggplotly(pi)
-```
-
-### Chart 2
-
-```{r}
-ggplotly(p3)
-```
-
-# Tab 4
-
-### Chart 1
-
-```{r}
-ggplotly(pi)
-```
-
-### Chart 2
-
-```{r}
-ggplotly(p4)
-```
