@@ -1,0 +1,109 @@
+---
+title: "Transfusion Service Analysis"
+author: "Jessica Jones"
+date: "`r format(Sys.Date(),'%B %d, %Y')`"
+output: 
+  flexdashboard::flex_dashboard:
+  orientation: rows
+html_document:
+  df_print: paged
+---
+  
+```{r setup, include = FALSE}
+library(tidyverse)
+library(ggplot2)
+library(plotly)
+library(flexdashboard)
+
+##most recent year
+file_id <- as.numeric(format(Sys.Date(), '%Y'))-1
+bbarea <- c("BB", "C", "CRC", "I", "R")
+labloc <- c("B", "C", "CRC", "I", "R")
+```
+
+```{r data}
+##read data
+##query in tsa_query
+bb_if_data <- readRDS(file = paste0("../Final/Data/bb_if_data_fy", file_id, ".rds"))
+bb_is_data <- readRDS(file = paste0("../Final/Data/bb_is_data_fy", file_id, ".rds"))
+bb_t_data <- readRDS(file = paste0("../Final/Data/bb_t_data_fy", file_id, ".rds"))
+
+```
+
+```{r}
+glimpse(bb_if_data)
+glimpse(bb_is_data)
+glimpse(bb_t_data)
+```
+
+```{r}
+if(min(bb_is_data$IssueDate) == min(bb_if_data$IssueDate_ODBC) & min(bb_t_data$ReceiveDateODBC) == min(bb_is_data$IssueDate)) {
+  mindate <- format(min(bb_is_data$IssueDate), "%B %Y")
+} else {
+  stop("Check report start dates.")
+}
+
+if(max(bb_is_data$IssueDate) == max(bb_if_data$IssueDate_ODBC) & max(bb_t_data$ReceiveDateODBC) == max(bb_is_data$IssueDate)) {
+  maxdate <- format(max(bb_is_data$IssueDate), "%B %Y")
+} else {
+  stop("Check report end dates.")
+}
+```
+
+Closer look at the Transfusion Service from `r mindate` to `r maxdate`.
+
+# Tab 1
+
+### Chart 1
+
+```{r}
+ggplotly(pi)
+```
+
+### Chart 2
+
+```{r}
+ggplotly(p1)
+```
+
+# Tab 2
+
+### Chart 1
+
+```{r}
+ggplotly(pi)
+```
+
+### Chart 2
+
+```{r}
+ggplotly(p2)
+```
+
+# Tab 3
+
+### Chart 1
+
+```{r}
+ggplotly(pi)
+```
+
+### Chart 2
+
+```{r}
+ggplotly(p3)
+```
+
+# Tab 4
+
+### Chart 1
+
+```{r}
+ggplotly(pi)
+```
+
+### Chart 2
+
+```{r}
+ggplotly(p4)
+```
