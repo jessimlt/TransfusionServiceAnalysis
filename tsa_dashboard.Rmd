@@ -26,7 +26,6 @@ products <- c("RC", "PLTG", "PLG", "CRYG", "MFP")
 product_labels <- c("RBCs", "Platelets", "Plasma", "Cryoprecipitate", "Manufactured")
 
 ## formatting
-
 mycolors <- c("#E8000D", "#0051BA", "#FFC82D", "#355C7D", "#85898A")
 
 Graph_Theme <- theme(plot.title = element_text(face = "bold", size = (12), hjust = 0.5),
@@ -37,6 +36,7 @@ Graph_Theme <- theme(plot.title = element_text(face = "bold", size = (12), hjust
                      legend.key.size =  unit(5,"mm"),
                      #legend.position = "none",
                      axis.text = element_text(size = 8))
+
 ```
 
 ```{r data}
@@ -86,7 +86,8 @@ bb_t_data <- bb_t_data |>
          Method = case_when(ResultMethod == "%BPW" ~ "Bench",
                             ResultMethod == "EC2" ~ "Echo",
                             ResultMethod == "NE1" ~ "Neo",
-                            TRUE ~ "Other"))
+                            TRUE ~ "Other")) |> 
+  filter(TAT > 24 & TAT < 1440)   ##remove data not representative of normal bb processes
 
 ```
 
@@ -112,7 +113,6 @@ if(min(year(bb_is_data$IssueDate)) != max(year(bb_is_data$IssueDate))){
   bb_t_data <- bb_t_data |> 
     mutate(Month = factor(Month, levels = fiscal_months))
 }
-
 
 ```
 
@@ -148,7 +148,7 @@ if(nrow(monthly_is_count) == nrow(monthly_if_count)){
 
 ```
 
-column
+Column
 -------------------------------------------------------
 
 ### Transfusions average `r bb_if_monthlyavg` per month
@@ -202,6 +202,7 @@ g_monthly_is <- ggplot(monthly_is) +
   Graph_Theme
 
 ggplotly(g_monthly_is)
+
 ```
 
 ### Approximately `r avg_diff_is_if` more products are issued per month than is transfused
@@ -221,20 +222,119 @@ g_monthly_product_counts <- ggplot(monthly_product_counts) +
   Graph_Theme
 
 ggplotly(g_monthly_product_counts)
+
 ```
 
 # Turn Around Times
 
 ```{r}
-mean(bb_t_data$TAT)
-quantile(bb_t_data$TAT, probs = 0.9)
+xm_ninety <- bb_t_data |> 
+  filter(BatTstCode == "XM") |> 
+  summarize(test = quantile(TAT, probs = 0.9))
+
+as_ninety <- bb_t_data |> 
+  summarize(test = quantile(TAT, probs = 0.9))
+
+stat_ninety <- bb_t_data |> 
+  filter(PriorityCodes == "S") |> 
+  summarize(test = quantile(TAT, probs = 0.9))
+
+instrument_ninety <- bb_t_data |> 
+  filter(ResultMethod != "%BPW") |> ##not manual
+  summarize(test = quantile(TAT, probs = 0.9))
+
+##ne1_ninety <- bb_t_data |> 
+##  filter(ResultMethod == "NE1") |> ##Immucor Neo Iris
+##  summarize(test = quantile(TAT, probs = 0.9))
+##
+##ec2_ninety <- bb_t_data |> 
+##  filter(ResultMethod == "EC2") |> ##Immucor Echo Lumena
+##  summarize(test = quantile(TAT, probs = 0.9))
+
 ```
 
+Column
+-------------------------------------------------------
 
-### Chart 1
+### Antibody screens are resulted within `r as_ninety` minutes 90% of the time.
 
 ```{r}
-print("tab 2 chart 1")
+as_tat_results <- bb_t_data |>  
+  group_by(Results, Hour) |> 
+  summarize(TAT = quantile(TAT, probs = 0.9)) 
+
+g_as_tat_results <- ggplot(as_tat_results) +
+  geom_line(aes(x = Hour, y = TAT, color = Results)) +
+  labs(title = "Antibody Screen TAT by Result Category",
+       x = "Receipt Hour",
+       y = "90th percentile TAT") +
+  scale_x_continuous(breaks = seq(1,23,2)) +
+  scale_color_manual(values = mycolors) +
+  Graph_Theme
+
+ggplotly(g_as_tat_results)
+
 ```
 
+### Stat antibody screens are resulted within `r stat_ninety` minutes 90% of the time.
 
+```{r}
+as_tat_priority <- bb_t_data |>
+  group_by(Priority, Hour) |> 
+  summarize(TAT = quantile(TAT, probs = 0.9))
+
+g_as_tat_priority <- ggplot(as_tat_priority) +
+  geom_line(aes(x = Hour, y = TAT, color = Priority)) +
+  labs(title = "Antibody Screen TAT by Priority",
+       x = "Receipt Hour",
+       y = "90th percentile TAT") +
+  scale_x_continuous(breaks = seq(1,23,2)) +
+  scale_color_manual(values = mycolors) +
+  Graph_Theme
+
+ggplotly(g_as_tat_priority)
+
+```
+
+Column
+-------------------------------------------------------
+
+### Antibody screens from the Instruments are resulted within `r instrument_ninety` minutes 90% of the time.
+
+```{r}
+as_tat_method <- bb_t_data |>  
+  group_by(Method, Hour) |> 
+  summarize(TAT = quantile(TAT, probs = 0.9)) 
+
+g_as_tat_method <- ggplot(as_tat_method) +
+  geom_line(aes(x = Hour, y = TAT, color = Method)) +
+  labs(title = "Antibody Screen TAT by Result Method",
+       x = "Receipt Hour",
+       y = "90th percentile TAT") +
+  scale_x_continuous(breaks = seq(1,23,2)) +
+  scale_color_manual(values = mycolors) +
+  Graph_Theme
+
+ggplotly(g_as_tat_method)
+
+```
+
+### Crossmatch antibody screens are resulted within `r xm_ninety` minutes 90% of the time.
+
+```{r}
+as_tat_battery <- bb_t_data |>  
+  group_by(Battery, Hour) |> 
+  summarize(TAT = quantile(TAT, probs = 0.9)) 
+
+g_as_tat_battery <- ggplot(as_tat_battery) +
+  geom_line(aes(x = Hour, y = TAT, color = Battery)) +
+  labs(title = "Antibody Screen TAT by Battery",
+       x = "Receipt Hour",
+       y = "90th percentile TAT") +
+  scale_x_continuous(breaks = seq(1,23,2)) +
+  scale_color_manual(values = mycolors) +
+  Graph_Theme
+
+ggplotly(g_as_tat_battery)
+
+```
