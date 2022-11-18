@@ -2,6 +2,7 @@
 library(shiny)
 library(tidyverse)
 library(ggplot2)
+library(plotly)
 
 ##most recent year
 file_id <- as.numeric(format(Sys.Date(), '%Y'))-1
@@ -22,9 +23,21 @@ get_if_plot <- function(locations = "BB"){
     count(name = "Count") |> 
     ggplot() +
     geom_col(aes(x = Month, y = Count, fill = Components)) +
-    labs(title = "Transfusions") +
+    labs(title = "Products Transfused") +
     scale_fill_manual(values = mycolors)
   return(g_if)
+}
+
+get_is_plot <- function(locations = "BB"){
+  g_is <- bb_is_data |> 
+    filter(UnitArea == locations) |> 
+    group_by(Month, Components) |> 
+    count(name = "Count") |> 
+    ggplot() +
+    geom_col(aes(x = Month, y = Count, fill = Components)) +
+    labs(title = "Products Issued") +
+    scale_fill_manual(values = mycolors)
+  return(g_is)
 }
 
 diabetesRisk <-function(glucose){
@@ -33,11 +46,17 @@ diabetesRisk <-function(glucose){
 
 # Define server logic required to draw a histogram
 shinyServer(function(input, output) {
-  
-  output$g_if <- renderPlot({
+
+  #Product by Location Tab  
+  output$g_if <- renderPlotly({
     get_if_plot(input$locations)
   })
+  
+  output$g_is <- renderPlotly({
+    get_is_plot(input$locations)
+  })
 
+  #tab 2
   output$inputValue <- renderPrint({input$glucose})
   output$prediction <- renderPrint({diabetesRisk(input$glucose)
     })

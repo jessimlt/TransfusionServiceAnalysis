@@ -6,12 +6,13 @@ shinyUI(
   
   fluidPage(
     tabsetPanel(
-      tabPanel("tab1", fluid = TRUE,
+      tabPanel("Product by Location", fluid = TRUE,
                sidebarLayout(
                  sidebarPanel(
-                   selectInput("locations", "Transfusion Locations", choices = c("", "BB", "C", "CRC"))
+                   selectInput("locations", "Transfusion Service Locations", choices = c("", "BB", "C", "CRC"))
                    ),
-                 mainPanel(plotOutput("g_if")
+                 mainPanel(plotlyOutput("g_if"),
+                           plotlyOutput("g_is")
                            )
                  )
                ),
