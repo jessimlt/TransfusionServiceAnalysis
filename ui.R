@@ -1,7 +1,8 @@
 
 library(shiny)
+library(plotly)
 
-# Define UI for application that draws a histogram
+##define UI
 shinyUI(
   
   fluidPage(
@@ -9,23 +10,29 @@ shinyUI(
       tabPanel("Product by Location", fluid = TRUE,
                sidebarLayout(
                  sidebarPanel(
-                   selectInput("locations", "Transfusion Service Locations", choices = c("", "BB", "C", "CRC"))
+                   selectInput("locations", 
+                               "Transfusion Service Locations", 
+                               choices = c("BB", "C", "CRC"),
+                               selected = "BB")
                    ),
                  mainPanel(plotlyOutput("g_if"),
-                           plotlyOutput("g_is")
+                           plotlyOutput("g_is"),
+                           plotlyOutput("g_ifvis")
                            )
                  )
                ),
-      tabPanel("tab2", fluid = TRUE,
+      tabPanel("Antibody Screens by Order", fluid = TRUE,
                sidebarLayout(
                  sidebarPanel(
-                   numericInput('glucose', 'Glucose mg/dl', 90, min = 50, max = 200, step = 5)
+                   selectInput("ordercodes", 
+                               "Order Types", 
+                               choices = c("Crossmatch", "Type and Screen", "Other %AS battery"),
+                               selected = "Crossmatch")
                    ),
-                 mainPanel(h3('Result of prediction'),
-                           h4('You entered '),
-                           verbatimTextOutput("inputValue"),
-                           h4('Which resulted in a prediction of '),
-                           verbatimTextOutput("prediction")
+                 mainPanel(plotlyOutput("g_t_counts"),
+                           plotlyOutput("g_t_method"),
+                           plotlyOutput("g_t_results"),
+                           plotlyOutput("g_t_priority")
                  )
                )
       )
