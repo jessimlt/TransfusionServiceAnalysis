@@ -129,6 +129,48 @@ get_t_priority_plot <- function(ordercodes){
   return(g_t_priority)
 }
 
+##heatmaps
+
+g_is_hm <- bb_is_data |> 
+  group_by(Weekday, Hour) |> 
+  count(name = "Count") |> 
+  ggplot(aes(x = Weekday, y = Hour, fill = Count)) +
+  geom_tile(lwd = 0.5, linetype = 1, color = "black") +
+  scale_fill_distiller(palette = "RdYlGn", direction = -1) + 
+  scale_y_continuous(breaks = seq(0,23,1)) +
+  labs(title = "Products Issued Counts",
+       x = "Day of Week",
+       y = "Hour of Day") +
+  theme(panel.background = element_blank(),
+        axis.ticks = element_blank())
+
+g_as_hm <- bb_t_data |> 
+  group_by(Weekday, Hour) |> 
+  count(name = "Count") |> 
+  ggplot(aes(x = Weekday, y = Hour, fill = Count)) +
+  geom_tile(lwd = 0.5, linetype = 1, color = "black") +
+  scale_fill_distiller(palette = "RdYlGn", direction = -1) + 
+  scale_y_continuous(breaks = seq(0,23,1)) +
+  labs(title = "Antibody Screens Received Counts",
+       x = "Day of Week",
+       y = "Hour of Day") +
+  theme(panel.background = element_blank(),
+        axis.ticks = element_blank())
+
+g_tat_hm <- bb_t_data |> 
+  group_by(Weekday, Hour) |> 
+  summarize(TAT =  quantile(TAT, probs = 0.9)) |> 
+  ggplot(aes(x = Weekday, y = Hour, fill = TAT)) +
+  geom_tile(lwd = 0.5, linetype = 1, color = "black") +
+  scale_fill_distiller(palette = "RdYlGn", direction = -1) + 
+  scale_y_continuous(breaks = seq(0,23,1)) +
+  labs(title = "Antibody Screens 90th percentile TAT",
+       x = "Day of Week",
+       y = "Hour of Day") +
+  theme(panel.background = element_blank(),
+        axis.ticks = element_blank())
+
+
 ##server logic
 shinyServer(function(input, output) {
 
@@ -159,4 +201,14 @@ shinyServer(function(input, output) {
     get_t_priority_plot(input$ordercodes)
   })
 
+  #Heatmaps
+  output$g_is_hm <- renderPlotly({
+    g_is_hm
+  })
+  output$g_as_hm <- renderPlotly({
+    g_as_hm
+  })
+  output$g_tat_hm <- renderPlotly({
+    g_tat_hm
+  })
 })

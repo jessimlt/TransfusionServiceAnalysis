@@ -35,7 +35,13 @@ shinyUI(
                            plotlyOutput("g_t_priority")
                  )
                )
-      )
+      ),
+      tabPanel("Heatmaps", fluid = TRUE,
+               mainPanel(plotlyOutput("g_is_hm"),
+                         plotlyOutput("g_as_hm"),
+                         plotlyOutput("g_tat_hm")
+                         )
+               )
     )
   )
 )
