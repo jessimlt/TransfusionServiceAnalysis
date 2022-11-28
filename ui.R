@@ -16,7 +16,6 @@ shinyUI(
                                selected = "BB")
                    ),
                  mainPanel(plotlyOutput("g_if"),
-                           plotlyOutput("g_is"),
                            plotlyOutput("g_ifvis")
                            )
                  )

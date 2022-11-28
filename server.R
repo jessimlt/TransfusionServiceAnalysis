@@ -33,18 +33,6 @@ get_if_plot <- function(locations){
   return(g_if)
 }
 
-get_is_plot <- function(locations){
-  g_is <- bb_is_data |> 
-    filter(UnitArea == locations) |> 
-    group_by(Month, Components) |> 
-    count(name = "Count") |> 
-    ggplot() +
-    geom_col(aes(x = Month, y = Count, fill = Components)) +
-    labs(title = "Products Issued") +
-    scale_fill_manual(values = mycolors)
-  return(g_is)
-}
-
 get_ifvis_plot <- function(locations){
   
   monthly_if_count <- bb_if_data |>
@@ -95,6 +83,7 @@ get_t_method_plot <- function(ordercodes){
          x = "Receipt Hour",
          y = "90th percentile minute TAT") +
     scale_x_continuous(breaks = seq(1,23,2)) +
+    expand_limits(y = 0) +
     scale_color_manual(values = mycolors)
   return(g_t_method)
 }
@@ -110,6 +99,7 @@ get_t_results_plot <- function(ordercodes){
          x = "Receipt Hour",
          y = "90th percentile minute TAT") +
     scale_x_continuous(breaks = seq(1,23,2)) +
+    expand_limits(y = 0) +
     scale_color_manual(values = mycolors)
   return(g_t_results)
 }
@@ -125,6 +115,7 @@ get_t_priority_plot <- function(ordercodes){
          x = "Receipt Hour",
          y = "90th percentile minute TAT") +
     scale_x_continuous(breaks = seq(1,23,2)) +
+    expand_limits(y = 0) +
     scale_color_manual(values = mycolors)
   return(g_t_priority)
 }
@@ -158,18 +149,18 @@ g_as_hm <- bb_t_data |>
         axis.ticks = element_blank())
 
 g_tat_hm <- bb_t_data |> 
+  filter(Battery %in% c("Crossmatch", "Type and Screen")) |> 
   group_by(Weekday, Hour) |> 
   summarize(TAT =  quantile(TAT, probs = 0.9)) |> 
   ggplot(aes(x = Weekday, y = Hour, fill = TAT)) +
   geom_tile(lwd = 0.5, linetype = 1, color = "black") +
   scale_fill_distiller(palette = "RdYlGn", direction = -1) + 
   scale_y_continuous(breaks = seq(0,23,1)) +
-  labs(title = "Antibody Screens 90th percentile TAT",
+  labs(title = "XM and TYSC 90th percentile TAT",
        x = "Day of Week",
        y = "Hour of Day") +
   theme(panel.background = element_blank(),
         axis.ticks = element_blank())
-
 
 ##server logic
 shinyServer(function(input, output) {
@@ -178,11 +169,7 @@ shinyServer(function(input, output) {
   output$g_if <- renderPlotly({
     get_if_plot(input$locations)
   })
-  
-  output$g_is <- renderPlotly({
-    get_is_plot(input$locations)
-  })
-  
+
   output$g_ifvis <- renderPlotly({
     get_ifvis_plot(input$locations)
   })
